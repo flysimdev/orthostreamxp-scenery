@@ -10,7 +10,9 @@
     regions/<id>/overlays/Earth nav data/<+40-130>/<+44-122>.dsf
 
     <id> is one of AutoOrtho's regions. Every tile has a mesh DSF and an overlay DSF, in the 10-degree folder it
-    belongs to, and appears in one region only. No file reaches GitHub's 100 MB limit. Exits 1 on any error.
+    belongs to, and appears in one region only. DSFs are plain (XPLNEDSF), not 7-Zip compressed, as AutoOrtho's are:
+    OrthoStreamXP reads their roads for the night lights and their terrain list for the load-ahead. No file reaches
+    GitHub's 100 MB limit. Exits 1 on any error.
 
     Runs on Windows PowerShell 5.1 and PowerShell 7 (Windows or Linux).
 #>
@@ -32,13 +34,15 @@ function Get-Relative([string] $base, [string] $path) {
 
 function Get-Sign([double] $value) { if ($value -lt 0) { '-' } else { '+' } }
 
-function Test-Dsf([string] $path) {
+# What a DSF file is: 'plain' (XPLNEDSF), '7zip' (compressed) or 'other'.
+function Get-DsfKind([string] $path) {
     $bytes = [byte[]]::new(8)
     $stream = [IO.File]::OpenRead($path)
     try { $read = $stream.Read($bytes, 0, 8) } finally { $stream.Dispose() }
-    $text = [Text.Encoding]::ASCII.GetString($bytes, 0, $read)
+    if ($read -eq 8 -and [Text.Encoding]::ASCII.GetString($bytes) -eq 'XPLNEDSF') { return 'plain' }
     $sevenZip = $read -ge 6 -and $bytes[0] -eq 0x37 -and $bytes[1] -eq 0x7A -and $bytes[2] -eq 0xBC -and $bytes[3] -eq 0xAF -and $bytes[4] -eq 0x27 -and $bytes[5] -eq 0x1C
-    return $text -eq 'XPLNEDSF' -or $sevenZip
+    if ($sevenZip) { return '7zip' }
+    return 'other'
 }
 
 # The 10-degree folder of a tile: +44-122 is in +40-130 (rounded down, south and west included).
@@ -59,7 +63,12 @@ function Get-Tiles([string] $earthNavData, [string] $label) {
             Fail "$label/Earth nav data/$relative is not a tile DSF (<+40-130>/<+44-122>.dsf)"; continue
         }
         if ($parts[0] -ne (Get-TileFolder $file.BaseName)) { Fail "$label/Earth nav data/$relative belongs in $(Get-TileFolder $file.BaseName)/" }
-        if (-not (Test-Dsf $file.FullName)) { Fail "$label/Earth nav data/$relative is not a DSF (neither XPLNEDSF nor 7-Zip)" }
+        switch (Get-DsfKind $file.FullName) {
+            # OrthoStreamXP reads the roads (night lights) and the terrain list (load-ahead) of plain DSFs only, and
+            # AutoOrtho's are plain: a compressed tile would have no night lights and no textures prepared ahead.
+            '7zip' { Fail "$label/Earth nav data/$relative is 7-Zip compressed: unpack it (7z e <file>), OrthoStreamXP reads only plain DSFs" }
+            'other' { Fail "$label/Earth nav data/$relative is not a DSF (no XPLNEDSF header)" }
+        }
         $tiles[$file.BaseName] = $true
     }
     return $tiles

@@ -30,14 +30,20 @@ pack.ps1                          regions/ -> the release's zips and supplements
 
 There are no `terrain/*.ter` files: OrthoStreamXP builds them from the tile names as X-Plane reads them.
 
-The tiles are plain files in git, without Git LFS. Every file is under GitHub's 50 MB warning size (the largest DSF is
-about 33 MB), and OrthoStreamXP never clones the repository: it downloads release assets only. Consider moving to
-release-only storage if the repository grows past about 1 GB.
+The DSFs are **plain, not 7-Zip compressed**, as AutoOrtho's are. OrthoStreamXP reads two things from them: the roads in
+the overlay DSFs, to paint the night lights, and the terrain list in the mesh DSFs, to prepare textures ahead of the
+aircraft. It can't read either from a compressed DSF, so a compressed tile would be dark at night and load slower.
+Ortho4XP compresses DSFs when 7-Zip is set up in it; unpack such a file with `7z e <file>` before adding it.
+
+The tiles are plain files in git, without Git LFS. Every file is under GitHub's 100 MB limit (the largest DSF is about
+53 MB, so pushes print a warning about files over 50 MB, which is harmless). OrthoStreamXP never clones the
+repository: it downloads release assets only. Consider moving to release-only storage if the repository grows past
+about 1 GB.
 
 ## Adding or changing tiles
 
 1. Put each tile's files in the region it belongs to:
-   - the mesh DSF in `mesh/Earth nav data/<10° folder>/`
+   - the mesh DSF (plain, see above) in `mesh/Earth nav data/<10° folder>/`
    - its overlay DSF in `overlays/Earth nav data/<10° folder>/`
    - its sea-mask PNGs in `mesh/textures/`
    The 10° folder is the tile's latitude and longitude rounded down to tens: `+44-122` goes in `+40-130`, and `-19-174`
@@ -51,7 +57,8 @@ release-only storage if the repository grows past about 1 GB.
 `check.ps1` refuses:
 - a folder that is not one of AutoOrtho's regions
 - a tile without both a mesh DSF and an overlay DSF
-- a DSF in the wrong 10° folder, or one that is neither `XPLNEDSF` nor 7-Zip compressed
+- a DSF in the wrong 10° folder
+- a DSF that is 7-Zip compressed, or isn't a DSF at all (no `XPLNEDSF` header)
 - a tile that is in two regions
 - any other file
 - a file of 100 MB or more (GitHub refuses those)
