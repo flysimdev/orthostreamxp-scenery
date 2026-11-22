@@ -1,0 +1,17 @@
+# Every push and pull request: regions/ is what OrthoStreamXP expects (check.ps1), and it packs.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check and pack
+        shell: pwsh
+        run: ./pack.ps1 -Tag v0 -Out out

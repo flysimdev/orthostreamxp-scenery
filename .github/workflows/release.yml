@@ -1,0 +1,40 @@
+# A version tag (v1, v2, ...): check regions/, pack it, and publish the zips and supplements.json as the newest release.
+# OrthoStreamXP reads https://github.com/flysimdev/orthostreamxp-scenery/releases/latest/download/supplements.json,
+# so the release must be the latest one (not a pre-release).
+# The release text is release-notes/<tag>.md when there is one, followed by GitHub's generated list of changes.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The newest release before this one: a region whose files changed must have raised its version (pack.ps1 checks).
+      - name: Get the release before
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p prev
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern supplements.json --dir prev \
+            || echo "::notice::No release before this one: nothing to compare with"
+
+      - name: Pack
+        shell: pwsh
+        run: ./pack.ps1 -Tag '${{ github.ref_name }}' -Previous prev/supplements.json -Repository '${{ github.repository }}'
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ github.ref_name }}'
+          notes=()
+          if [ -f "release-notes/$tag.md" ]; then notes=(--notes-file "release-notes/$tag.md"); fi
+          gh release create "$tag" out/* --title "$tag" --latest --generate-notes "${notes[@]}"
